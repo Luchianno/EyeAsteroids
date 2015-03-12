@@ -3,7 +3,8 @@ using System.Collections;
 
 public class PlayerController : MonoBehaviour
 {
-    public int Health = 1000;
+    public int Health { get; private set; }
+    public int InitialHealth = 1000;
     public int MinCollisionDamage = 50;
     public int MaxCollisionDamage = 300;
 
@@ -11,15 +12,17 @@ public class PlayerController : MonoBehaviour
 
 
     EyeXHost host;
-    IEyeXDataProvider<EyeXEyePosition> eyePos;
+    //IEyeXDataProvider<EyeXEyePosition> eyePos;
     IEyeXDataProvider<EyeXGazePoint> gazePos;
 
     void Start()
     {
         host = EyeXHost.GetInstance();
-        eyePos = host.GetEyePositionDataProvider();
+        //eyePos = host.GetEyePositionDataProvider();
         gazePos = host.GetGazePointDataProvider(Tobii.EyeX.Framework.GazePointDataMode.LightlyFiltered);
         gazePos.Start();
+
+        ResetHealth();
     }
 
     void Update()
@@ -30,6 +33,10 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    public void ResetHealth()
+    {
+        this.Health = InitialHealth;
+    }
 
 
     void OnCollisionEnter2D(Collision2D coll)

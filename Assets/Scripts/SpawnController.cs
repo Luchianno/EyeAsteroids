@@ -10,25 +10,19 @@ public class SpawnController : MonoBehaviour
     public float MinSpeed;
     public float MaxSpeed;
 
-    public GameObject parent;
-
     void Start()
     {
-        Invoke("Spawn", Random.Range(0, 2f));
-        if (parent == null)
-        {
-            parent = GameObject.Find("Asteroids");
-        }
+        //Invoke("Spawn", Random.Range(0, 2f));
 
         //LeanTween.move(this.gameObject, transform.position + transform.up* , 1f).setLoopType(LeanTweenType.pingPong);
     }
 
 
-
     public void Spawn()
     {
-        var temp = (GameObject)Instantiate(asteroids[Random.Range(0, asteroids.Length)], this.transform.position, Quaternion.identity);
-        temp.transform.parent = parent.transform;
+        var temp = hObjectPool.Instance.Spawn(asteroids[Random.Range(0, asteroids.Length)], this.transform.position, Quaternion.identity);
+
+        // (GameObject)Instantiate(asteroids[Random.Range(0, asteroids.Length)], this.transform.position, Quaternion.identity);
 
         temp.rigidbody2D.velocity = Random.Range(MinSpeed, MaxSpeed) * Random.insideUnitCircle;
 

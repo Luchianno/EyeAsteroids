@@ -4,71 +4,102 @@ using System.Collections;
 public class GameController : MonoBehaviour
 {
     public bool isGameOver = true;
+    public float GrowTime = 2f;
 
     public float PlayTime = 120;
 
     private float eyesDetectedDuration; // ramdeni xania dafiqsirebuli tvalebi
     private float eyesDetectedLast; // bolo dafiqsirebis dro
 
+    public PlayerController Player;
+
+
+    EyeXHost host;
+    IEyeXDataProvider<EyeXGazePoint> gazePos;
+
+    public void Start()
+    {
+        host = EyeXHost.GetInstance();
+        gazePos = host.GetGazePointDataProvider(Tobii.EyeX.Framework.GazePointDataMode.LightlyFiltered);
+    }
+
+    public void StopSpawners()
+    {
+        foreach (var item in GameObject.FindGameObjectsWithTag("Spawner"))
+        {
+            item.SendMessage("CancelInvoke", "Spawn");
+        }
+    }
+
+    public void StartSpawners()
+    {
+        foreach (var item in GameObject.FindGameObjectsWithTag("Spawner"))
+        {
+            item.SendMessage("Spawn");
+        }
+    }
+
     public void StartGame()
     {
-        StartCoroutine(runTimer());
         isGameOver = false;
-        //isGameOver = fal
+        Player.enabled = true;
+        Player.ResetHealth();
+        LeanTween.scale(Player.gameObject, new Vector3(1, 1, 1), GrowTime).setLoopType(LeanTweenType.easeOutCubic).setLoopOnce();
+
+        StartSpawners();
     }
 
     void EndGame(bool win)
     {
-        StopCoroutine("runTimer");
         isGameOver = true;
-        this.collider2D.enabled = false;
-        float time = 2f;
-        LeanTween.scale(this.gameObject, new Vector3(3, 3, 3), time);
-        LeanTween.move(this.gameObject, Camera.main.transform.position, time);
+        StopSpawners();
 
-        isGameOver = false;
-    }
+        foreach (var item in GameObject.FindGameObjectsWithTag("Enemy"))
+        {
+            item.GetComponent<hObjectPoolItem>().DespawnSafely();
+        }
 
-    void Start()
-    {
-
+        LeanTween.cancel(Player.gameObject);
+        LeanTween.scale(Player.gameObject, new Vector3(3, 3, 3), GrowTime);
+        LeanTween.move(this.gameObject, Vector3.zero, GrowTime);
     }
 
     void Update()
     {
+        if (Input.GetButtonUp("Jump"))
+        {
+            StartGame();
+        }
 
         if (isGameOver)
         {
             //თუ თვალებს ვხედავთ
-            //if (gazePos.Last.IsValid && gazePos.Last.IsWithinScreenBounds)
+            if (gazePos.Last.IsValid && gazePos.Last.IsWithinScreenBounds)
             {
                 eyesDetectedDuration += Time.deltaTime;
                 eyesDetectedLast = Time.time;
+                if (eyesDetectedDuration > 4f)
+                {
+                    StartGame();
+                }
             }
-            //else if (Time.time - eyesDetectedLast <= 0.3f) // 300 miliwami?
+            else if (Time.time - eyesDetectedLast <= 0.3f) // 300 miliwami?
             {
                 eyesDetectedDuration += Time.deltaTime;
             }
-            // else
+            else
             {
                 eyesDetectedDuration = 0;
             }
         }
         else
         {
-            //if (Health <= 0)
+            if (Player.Health <= 0)
             {
-                //EndGame(false);
+                EndGame(false);
             }
         }
     }
-
-    IEnumerator runTimer()
-    {
-        yield return new WaitForSeconds(PlayTime);
-        EndGame(true);
-    }
-
 
     void OnGUI()
     {

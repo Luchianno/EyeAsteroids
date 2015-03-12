@@ -23,8 +23,8 @@ public class FaceController : MonoBehaviour
 
     void Update()
     {
-        // TODO ჩაჰარდკოდებული მოთამაშის სიცოცხლის მოშორება
-        spriteRenderer.sprite = sprites[(int)Mathf.Lerp(sprites.Length - 1, 0, player.Health / 1000f)];
+        // TODO test this
+        spriteRenderer.sprite = sprites[(int)Mathf.Lerp(sprites.Length - 1, 0, (float)player.Health / (float)player.InitialHealth)];
 
         if (gaze.Last.IsValid && gaze.Last.IsWithinScreenBounds)
         {
