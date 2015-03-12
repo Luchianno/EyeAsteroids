@@ -57,29 +57,34 @@ public class EyeXInteractor
     /// </summary>
     /// <param name="snapshot">Interaction snapshot.</param>
     /// <param name="windowId">ID of the game window.</param>
-    /// <param name="gameWindowPosition">Position of the game window in screen coordinates.</param>
-    public void AddToSnapshot(Snapshot snapshot, string windowId, Vector2 gameWindowPosition, float horizontalScreenScale, float verticalScreenScale)
+    /// <param name="viewportPosition">Position of the game window in screen coordinates.</param>
+    public void AddToSnapshot(Snapshot snapshot, string windowId, Vector2 viewportPosition, Vector2 viewportPixelsPerDesktopPixel)
     {
-        var interactor = snapshot.CreateInteractor(_id, _parentId, windowId);
-
-        var bounds = interactor.CreateBounds(BoundsType.Rectangular);
-        bounds.SetRectangularData(
-            (Location.rect.x + gameWindowPosition.x) / horizontalScreenScale,
-            (Location.rect.y + gameWindowPosition.y) / verticalScreenScale,
-            Location.rect.width / horizontalScreenScale,
-            Location.rect.height / horizontalScreenScale);
-
-        interactor.Z = Location.relativeZ;
-
-        if (Mask != null &&
-            Mask.Type != EyeXMaskType.None)
+        using (var interactor = snapshot.CreateInteractor(_id, _parentId, windowId))
         {
-            interactor.CreateMask(MaskType.Default, Mask.Size, Mask.Size, Mask.MaskData);
-        }
+            using (var bounds = interactor.CreateBounds(BoundsType.Rectangular))
+            {
+                // Location.rect is in GUI space.
+                bounds.SetRectangularData(
+                    viewportPosition.x + Location.rect.x / viewportPixelsPerDesktopPixel.x,
+                    viewportPosition.y + Location.rect.y / viewportPixelsPerDesktopPixel.y,
+                    Location.rect.width / viewportPixelsPerDesktopPixel.x,
+                    Location.rect.height / viewportPixelsPerDesktopPixel.y);
+            }
 
-        foreach (var behavior in EyeXBehaviors)
-        {
-            behavior.AddTo(interactor);
+            interactor.Z = Location.relativeZ;
+
+            if (Mask != null &&
+                Mask.Type != EyeXMaskType.None)
+            {
+                var mask = interactor.CreateMask(MaskType.Default, Mask.Size, Mask.Size, Mask.MaskData);
+                mask.Dispose();
+            }
+
+            foreach (var behavior in EyeXBehaviors)
+            {
+                behavior.AssignBehavior(interactor);
+            }
         }
     }
 
@@ -89,9 +94,16 @@ public class EyeXInteractor
     /// <param name="event_">Event object.</param>
     public void HandleEvent(InteractionEvent event_)
     {
+        var eventBehaviors = event_.Behaviors;
+
         foreach (var behavior in EyeXBehaviors)
         {
-            behavior.HandleEvent(event_);
+            behavior.HandleEvent(_id, eventBehaviors);
+        }
+
+        foreach (var eventBehavior in eventBehaviors)
+        {
+            eventBehavior.Dispose();
         }
     }
 

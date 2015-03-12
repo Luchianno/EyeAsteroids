@@ -2,8 +2,8 @@
 // Copyright 2014 Tobii Technology AB. All rights reserved.
 //-----------------------------------------------------------------------
 
-using System;
 using Tobii.EyeX.Client;
+using Tobii.EyeX.Framework;
 
 /// <summary>
 /// Accesses and monitors engine states.
@@ -14,23 +14,21 @@ internal class EyeXEngineStateAccessor<T>
 {
     private readonly string _statePath;
     private readonly AsyncDataHandler _handler;
-    private EventHandler<EyeXEngineStateValue<T>> _eventHandler;
     private EyeXEngineStateValue<T> _currentValue;
+    private bool _isInitialized;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="EyeXEngineStateAccessor{T}"/> class.
     /// </summary>
     /// <param name="statePath">The state path.</param>
-    /// <param name="handler">Callback to be invoked when the state changes.</param>
-    public EyeXEngineStateAccessor(string statePath, AsyncDataHandler handler)
+    public EyeXEngineStateAccessor(string statePath)
     {
         _statePath = statePath;
-        _handler = handler;
+        _handler = OnStateChanged;
     }
 
     /// <summary>
     /// Gets the current value of the engine state.
-    /// This is a blocking operation that must not be invoked from one of the EyeX worker threads.
     /// </summary>
     /// <param name="context">The interaction context.</param>
     /// <returns>The state value.</returns>
@@ -38,10 +36,12 @@ internal class EyeXEngineStateAccessor<T>
     {
         if (_currentValue == null)
         {
-            // this is the first time someone asks for the current value.
-            // we don't have a value yet, but we'll make sure we get one.
+            // This is the first time someone asks for the current value.
+            // We don't have a value yet, but we'll make sure we get one.
             _currentValue = EyeXEngineStateValue<T>.Invalid;
-            RegisterListener((s, e) => { _currentValue = e; }, context);
+            
+            // Register the state changed handler.
+            RegisterStateChangedHandler(context);
         }
 
         return _currentValue;
@@ -50,37 +50,18 @@ internal class EyeXEngineStateAccessor<T>
     /// <summary>
     /// Registers a listener for state-changed events.
     /// </summary>
-    /// <param name="listener">Event listener to be registered.</param>
     /// <param name="context">The interaction context.</param>
-    private void RegisterListener(EventHandler<EyeXEngineStateValue<T>> listener, Context context)
+    private void RegisterStateChangedHandler(Context context)
     {
-        if (_eventHandler == null &&
-            context != null)
+        if (!_isInitialized && context != null)
         {
-            // when the first event listener is registered: register a state-changed handler with the context.
+            // When the first event listener is registered: register a state-changed handler with the context.
             context.RegisterStateChangedHandler(_statePath, _handler);
             context.GetStateAsync(_statePath, _handler);
-        }
 
-        _eventHandler += listener;
-    }
-
-    /// <summary>
-    /// Handles a state-changed event that may or may not affect the state path handled by this instance.
-    /// </summary>
-    /// <param name="stateBag">Event data.</param>
-    /// <param name="sender">The source of the event.</param>
-    public void HandleStateChanged(StateBag stateBag, object sender)
-    {
-        var handler = _eventHandler;
-        if (handler != null)
-        {
-            T value;
-            if (stateBag.TryGetStateValue(out value, _statePath))
-            {
-                handler(sender, new EyeXEngineStateValue<T>(value));
-            }
-        }
+            // We're now initialized.
+            _isInitialized = true;
+        }        
     }
 
     /// <summary>
@@ -89,10 +70,10 @@ internal class EyeXEngineStateAccessor<T>
     /// <param name="context">The interaction context.</param>
     public void OnConnected(Context context)
     {
-        // when connected: send a request for the initial state.
-        if (_eventHandler != null)
+        if (_isInitialized)
         {
-            context.GetStateAsync(_statePath, _handler);
+            // When connected: send a request for the initial state.
+            context.GetStateAsync(_statePath, _handler);   
         }
     }
 
@@ -101,11 +82,37 @@ internal class EyeXEngineStateAccessor<T>
     /// </summary>
     public void OnDisconnected()
     {
-        // when disconnected: raise a state-changed event marking the state as invalid.
-        var handler = _eventHandler;
-        if (handler != null)
+        if (_isInitialized)
         {
-            handler(this, EyeXEngineStateValue<T>.Invalid);
+            // When disconnected: raise a state-changed event marking the state as invalid.
+            _currentValue = EyeXEngineStateValue<T>.Invalid;
+        }
+    }
+
+    private void OnStateChanged(AsyncData data)
+    {
+        using (data)
+        {
+            ResultCode resultCode;
+            if (!data.TryGetResultCode(out resultCode) || resultCode != ResultCode.Ok)
+            {
+                return;
+            }
+
+            using (var stateBag = data.GetDataAs<StateBag>())
+            {
+                if (stateBag != null)
+                {
+                    if (_isInitialized)
+                    {
+                        T value;
+                        if (stateBag.TryGetStateValue(out value, _statePath))
+                        {
+                            _currentValue = new EyeXEngineStateValue<T>(value);
+                        }
+                    }
+                }
+            }
         }
     }
 }

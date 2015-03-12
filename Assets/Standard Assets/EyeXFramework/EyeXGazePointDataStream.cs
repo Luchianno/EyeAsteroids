@@ -5,6 +5,7 @@
 using UnityEngine;
 using Tobii.EyeX.Client;
 using Tobii.EyeX.Framework;
+using System.Collections.Generic;
 
 /// <summary>
 /// Provider of gaze point data. When the provider has been started it
@@ -37,24 +38,20 @@ public class EyeXGazePointDataStream : EyeXDataStreamBase<EyeXGazePoint>
         interactor.CreateGazePointDataBehavior(ref behaviorParams);
     }
 
-    public override void HandleEvent(InteractionEvent event_, Vector2 gameWindowPosition, float horizontalScreenScale, float verticalScreenScale)
+    protected override void HandleEvent(IEnumerable<Behavior> eventBehaviors, Vector2 viewportPosition, Vector2 viewportPixelsPerDesktopPixel)
     {
         // Note that this method is called on a worker thread, so we MAY NOT access any game objects from here.
         // The data is stored in the Last property and used from the main thread.
-        foreach (var behavior in event_.Behaviors)
+        foreach (var behavior in eventBehaviors)
         {
-            if (behavior.BehaviorType != BehaviorType.GazePointData) { continue; }
-
             GazePointDataEventParams eventParams;
             if (behavior.TryGetGazePointDataEventParams(out eventParams))
             {
                 Last = new EyeXGazePoint(
-                    (float)eventParams.X, 
-                    (float)eventParams.Y, 
+                    new Vector2((float)eventParams.X, (float)eventParams.Y), 
                     eventParams.Timestamp,
-                    gameWindowPosition, 
-                    horizontalScreenScale, 
-                    verticalScreenScale);
+                    viewportPosition,
+                    viewportPixelsPerDesktopPixel);
             }
         }
     }

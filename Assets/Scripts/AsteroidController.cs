@@ -79,10 +79,15 @@ public class AsteroidController : EyeXGameObjectInteractorBase
         return new List<IEyeXBehavior> { new EyeXGazeAware() };
     }
 
-    protected override UnityEngine.Bounds GetBounds()
+    protected override ProjectedRect GetProjectedRect()
     {
-        return this.collider2D.bounds;
+        return ProjectedRect.GetProjectedRect(this.collider2D.bounds, Camera.main);
     }
+
+    //protected override UnityEngine.Bounds GetBounds()
+    //{
+    //    
+    //}
 
     void OnMouseOver()
     {

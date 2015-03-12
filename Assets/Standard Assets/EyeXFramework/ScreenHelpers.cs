@@ -3,108 +3,278 @@
 //-----------------------------------------------------------------------
 
 using System;
+using System.Diagnostics;
+using System.Reflection;
 using UnityEngine;
 
 /// <summary>
-/// Provides utility functions related to screen and window handling.
+/// Provides functions related to viewport bounds resolution.
 /// </summary>
-internal class ScreenHelpers
+internal abstract class EyeXViewportBoundsProvider
 {
-    private string _windowId;
-    private IntPtr _hwnd;
+    protected IntPtr _hwnd;
 
-#if UNITY_EDITOR
-    private UnityEditor.EditorWindow _gameWindow;
-#endif
-
-    internal ScreenHelpers()
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EyeXViewportBoundsProvider"/> class.
+    /// </summary>
+    protected EyeXViewportBoundsProvider()
     {
-        _hwnd = Win32Helpers.GetForegroundWindow();
-        _windowId = _hwnd.ToString();
-
-#if UNITY_EDITOR
-        _gameWindow = GetMainGameView();
-#endif
+        _hwnd = FindWindowWithThreadProcessId();
+        GameWindowId = _hwnd.ToString();
     }
 
     /// <summary>
-    /// Gets or sets the Window ID for the game window.
+    /// Gets the Window ID for the game window.
     /// </summary>
-    public string GameWindowId
-    {
-        get
-        {
-            return _windowId;
-        }
+    public string GameWindowId { get; private set; }
 
-        set
-        {
-            int hwnd;
-            if (int.TryParse(value, out hwnd))
-            {
-                _windowId = value;
-                _hwnd = new IntPtr(hwnd);
-            }
-        }
+    /// <summary>
+    /// Gets the position of the viewport in desktop coordinates (physical pixels).
+    /// </summary>
+    /// <returns>Position in physical desktop pixels.</returns>
+    public Rect GetViewportPhysicalBounds()
+    {
+        return LogicalToPhysical(GetViewportLogicalBounds());
     }
 
     /// <summary>
-    /// Returns the position of the game window in screen coordinates.
+    /// Gets the position of the viewport in logical pixels.
     /// </summary>
-    /// <returns>Position in screen coordinates.</returns>
-    public Vector2 GetGameWindowPosition()
+    /// <returns>Position in logical pixels.</returns>
+    protected abstract Rect GetViewportLogicalBounds();
+
+    /// <summary>
+    /// Maps from logical pixels to physical desktop pixels.
+    /// </summary>
+    /// <param name="rect">Rectangle to be transformed.</param>
+    /// <returns>Transformed rectangle.</returns>
+    protected virtual Rect LogicalToPhysical(Rect rect)
     {
-#if UNITY_EDITOR
-        var gameWindowPosition = _gameWindow.position;
-        var heightOffset = gameWindowPosition.height - Screen.height;
+        var topLeft = new Win32Helpers.POINT { x = (int)rect.x, y = (int)rect.y };
+        Win32Helpers.LogicalToPhysicalPoint(_hwnd, ref topLeft);
 
-        // Adjust for different aspect ratios and viewport sizes
-        var viewportOffsetX = (_gameWindow.position.width - Screen.width) / 2.0f;
-        var viewportOffsetY = (_gameWindow.position.height - Screen.height) / 2.0f;
+        var bottomRight = new Win32Helpers.POINT { x = (int)(rect.x + rect.width), y = (int)(rect.y + rect.height) };
+        Win32Helpers.LogicalToPhysicalPoint(_hwnd, ref bottomRight);
 
-        return new Vector2(gameWindowPosition.x + viewportOffsetX, gameWindowPosition.y - viewportOffsetY + heightOffset);
-#else
-        var windowClientPosition = new Win32Helpers.POINT();
-        Win32Helpers.ClientToScreen(_hwnd, ref windowClientPosition);
-        return new Vector2(windowClientPosition.x, windowClientPosition.y);
-#endif
+        return new Rect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
     }
 
     /// <summary>
-    /// Returns the horizontal screen scale factor
-    /// to adjust coordinates in windowed full-screen mode
+    /// Finds the window associated with the current thread and process.
     /// </summary>
-    /// <returns>The horizontal screen scale factor</returns>
-    public float GetHorizontalScreenScale(EyeXEngineStateValue<Tobii.EyeX.Client.Rect> eyetrackerScreenBounds)
+    /// <returns>A window handle represented as a <see cref="IntPtr"/>.</returns>
+    protected virtual IntPtr FindWindowWithThreadProcessId()
     {
-        if (Screen.fullScreen && eyetrackerScreenBounds.IsValid)
-        {
-            return (float)(Screen.width / eyetrackerScreenBounds.Value.Width);
-        }
-        else return 1.0f;
+        var processId = Process.GetCurrentProcess().Id;
+        return WindowHelpers.FindWindowWithThreadProcessId(processId);
     }
 
     /// <summary>
-    /// Returns the vertical screen scale factor
-    /// to adjust coordinates in windowed full-screen mode
+    /// Gets the (Unity) screen size.
     /// </summary>
-    /// <returns>The vertical screen scale factor</returns>
-    public float GetVerticalScreenScale(EyeXEngineStateValue<Tobii.EyeX.Client.Rect> eyetrackerScreenBounds)
+    /// <returns></returns>
+    protected virtual Vector2 GetScreenSize()
     {
-        if (Screen.fullScreen && eyetrackerScreenBounds.IsValid)
-        {
-            return (float)(Screen.height / eyetrackerScreenBounds.Value.Height);
-        }
-        else return 1.0f;
+        return new Vector2(Screen.width, Screen.height);
     }
 
 #if UNITY_EDITOR
-    private static UnityEditor.EditorWindow GetMainGameView()
+    /// <summary>
+    /// Gets the Unity toolbar height.
+    /// </summary>
+    /// <returns></returns>
+    protected virtual float GetToolbarHeight()
+    {
+        try
+        {
+            return UnityEditor.EditorStyles.toolbar.fixedHeight;
+        }
+        catch (NullReferenceException)
+        {
+            return 0f;
+        }
+    }
+
+    /// <summary>
+    /// Gets the Unity game view.
+    /// </summary>
+    /// <returns></returns>
+    protected virtual UnityEditor.EditorWindow GetMainGameView()
     {
         var unityEditorType = Type.GetType("UnityEditor.GameView,UnityEditor");
-        var getMainGameViewMethod = unityEditorType.GetMethod("GetMainGameView", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        System.Diagnostics.Debug.Assert(unityEditorType != null);
+        var getMainGameViewMethod = unityEditorType.GetMethod("GetMainGameView", BindingFlags.NonPublic | BindingFlags.Static);
+        System.Diagnostics.Debug.Assert(getMainGameViewMethod != null);
         var result = getMainGameViewMethod.Invoke(null, null);
         return (UnityEditor.EditorWindow)result;
     }
 #endif
 }
+
+/// <summary>
+/// Provides utility functions related to screen and window handling within the Unity Player.
+/// </summary>
+internal class UnityPlayerViewportBoundsProvider : EyeXViewportBoundsProvider
+{
+    protected override Rect GetViewportLogicalBounds()
+    {
+        var clientRect = new Win32Helpers.RECT();
+        Win32Helpers.GetClientRect(_hwnd, ref clientRect);
+
+        var topLeft = new Win32Helpers.POINT();
+        Win32Helpers.ClientToScreen(_hwnd, ref topLeft);
+
+        var bottomRight = new Win32Helpers.POINT { x = clientRect.right, y = clientRect.bottom };
+        Win32Helpers.ClientToScreen(_hwnd, ref bottomRight);
+
+        return new Rect(topLeft.x, topLeft.y, bottomRight.x - topLeft.x, bottomRight.y - topLeft.y);
+    }
+}
+
+#if UNITY_EDITOR
+/// <summary>
+/// This class is used to resolve the editor viewport bounds in 
+/// Unity versions previous to 4.6.
+/// </summary>
+internal class LegacyEditorViewportBoundsProvider : EyeXViewportBoundsProvider
+{
+    private UnityEditor.EditorWindow _gameWindow;
+    private bool _initialized;
+
+    private void Initialize()
+    {
+        _gameWindow = GetMainGameView();
+        _initialized = true;
+    }
+
+    /// <summary>
+    /// Gets the editor position of the editor viewport in logical pixels.
+    /// </summary>
+    /// <returns>The editor position of the viewport in logical pixels.</returns>
+    protected override Rect GetViewportLogicalBounds()
+    {
+        if (!_initialized)
+        {
+            Initialize();
+        }
+
+        var gameWindowBounds = _gameWindow.position;
+
+        // Adjust for the toolbar
+        var toolbarHeight = GetToolbarHeight();
+        gameWindowBounds.y += toolbarHeight;
+        gameWindowBounds.height -= toolbarHeight;
+
+        // Get the screen size.
+        var screenSize = GetScreenSize();
+
+        // Adjust for unused areas caused by fixed aspect ratio or resolution vs game window size mismatch
+        var viewportOffsetX = (gameWindowBounds.width - screenSize.x) / 2.0f;
+        var viewportOffsetY = (gameWindowBounds.height - screenSize.y) / 2.0f;
+
+        return new Rect(
+            gameWindowBounds.x + viewportOffsetX,
+            gameWindowBounds.y + viewportOffsetY,
+            screenSize.x,
+            screenSize.y);
+    }
+}
+
+/// <summary>
+/// This class is used to resolve the editor viewport bounds for 
+/// Unity version 4.6 and above.
+/// </summary>
+internal class EditorViewportBoundsProvider : EyeXViewportBoundsProvider
+{
+    private UnityEditor.EditorWindow _gameWindow;
+    private Func<Rect> _windowParentBoundsAccessor;
+    private float _toolbarHeight;    
+    private bool _initialized;
+
+    private const float TabHeight = 19f;
+
+    private void Initialize()
+    {
+        _gameWindow = GetMainGameView();
+        _windowParentBoundsAccessor = GetWindowParentBoundsAccessor(_gameWindow);
+        _toolbarHeight = GetToolbarHeight();        
+        _initialized = true;
+    }
+
+    /// <summary>
+    /// Gets the editor position of the editor viewport in logical pixels.
+    /// </summary>
+    /// <returns>The editor position of the viewport in logical pixels.</returns>
+    protected override Rect GetViewportLogicalBounds()
+    {
+        if (!_initialized)
+        {
+            Initialize();
+        }
+
+        var gameBounds = _gameWindow.position;
+        var windowPosition = GetWindowPosition();
+        var parentBounds = _windowParentBoundsAccessor();
+
+        // Get the viewport's logical size.
+        var screenSize = GetScreenSize();
+        var viewportWidth = screenSize.x;
+        var viewportHeight = screenSize.y;
+
+        // Depending on whether or not the game window is nested in a panel or not,
+        // the viewport's logical x position need to be calculated differently.
+        // If the viewport is nested, we need to take the parent panel's x-position into account.
+        var isNestedInPanel = gameBounds.x < parentBounds.x;
+        var viewportX = isNestedInPanel
+            ? windowPosition.x + parentBounds.x + gameBounds.x
+            : windowPosition.x + gameBounds.x;
+
+        // Calculate the viewport's logical y position.
+        var viewportY = parentBounds.y + windowPosition.y + (_toolbarHeight + TabHeight);
+
+        // Adjust for unused areas caused by fixed aspect ratio or resolution vs game window size mismatch.
+        var offsetX = (gameBounds.width - viewportWidth) / 2.0f;
+        var offsetY = (gameBounds.height - _toolbarHeight - viewportHeight) / 2.0f;
+
+        return new Rect(viewportX + offsetX, viewportY + offsetY, viewportWidth, viewportHeight);
+    }
+
+    /// <summary>
+    /// Gets an accessor to the parent panel's bounds accessor.
+    /// </summary>
+    /// <param name="gameView">The game view.</param>
+    /// <returns>An accessor to the parent panel's bounds accessor</returns>
+    protected virtual Func<Rect> GetWindowParentBoundsAccessor(UnityEditor.EditorWindow gameView)
+    {
+        System.Diagnostics.Debug.Assert(gameView != null);
+        var parentHostField = gameView.GetType().GetField("m_Parent", BindingFlags.NonPublic | BindingFlags.Instance);
+        if (parentHostField != null)
+        {
+            var parentHost = parentHostField.GetValue(gameView);
+            if (parentHost != null)
+            {
+                var windowPositionProperty = parentHost.GetType().GetProperty("windowPosition", BindingFlags.Public | BindingFlags.Instance);
+                if (windowPositionProperty != null)
+                {
+                    // Create a delegate to get the parent host bounds.
+                    return (Func<Rect>)
+                        Delegate.CreateDelegate(typeof(Func<Rect>), parentHost,
+                        windowPositionProperty.GetGetMethod());
+                }
+            }
+        }
+        throw new InvalidOperationException("Could not resolve window parent position accessor.");
+    }
+
+    /// <summary>
+    /// Gets the gameview's window position.
+    /// </summary>
+    /// <returns></returns>
+    protected virtual Vector2 GetWindowPosition()
+    {
+        var windowPosition = new Win32Helpers.POINT();
+        Win32Helpers.ClientToScreen(_hwnd, ref windowPosition);
+        return new Vector2(windowPosition.x, windowPosition.y);
+    }
+}
+#endif

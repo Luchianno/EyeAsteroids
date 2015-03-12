@@ -41,8 +41,7 @@ internal interface IEyeXGlobalInteractor
     /// Handles interaction events.
     /// </summary>
     /// <param name="event_">The <see cref="InteractionEvent"/> instance containing the event data.</param>
-    /// <param name="gameWindowPosition">The position of the top-left corner of the game window, in operating system coordinates.</param>
-    /// <param name="horizontalScreenScale">The horizontal relationship between the Unity and operating system coordinate systems.</param>
-    /// <param name="verticalScreenScale">The vertical relationship between the Unity and operating system coordinate systems.</param>
-    void HandleEvent(InteractionEvent event_, Vector2 gameWindowPosition, float horizontalScreenScale, float verticalScreenScale);
+    /// <param name="viewportPosition">The position of the top-left corner of the viewport, in operating system coordinates.</param>
+    /// <param name="viewportPixelsPerDesktopPixel">The scaling factor between the Unity viewport and operating system coordinate systems.</param>
+    void HandleEvent(InteractionEvent event_, Vector2 viewportPosition, Vector2 viewportPixelsPerDesktopPixel);
 }

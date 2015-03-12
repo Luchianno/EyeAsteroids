@@ -27,17 +27,39 @@ public struct ProjectedRect
     public double relativeZ;
 
     /// <summary>
-    /// Gets the projection for a given bounding box and camera.
+    /// Gets the projection for a given bounds and camera.
     /// </summary>
-    /// <param name="bounds">The bounds of a game object.</param>
+    /// <param name="bounds">The axis-aligned bounds of the game object.</param>
     /// <param name="camera">The camera.</param>
     /// <returns>The projection.</returns>
     public static ProjectedRect GetProjectedRect(Bounds bounds, Camera camera)
     {
+        return GetProjectedRect(GetBoundingCornerPoints(bounds), camera);
+    }
+
+    /// <summary>
+    /// Gets the projection for a given box collider and camera.
+    /// </summary>
+    /// <param name="boxCollider">The box collider for the game object.</param>
+    /// <param name="camera">The camera.</param>
+    /// <returns>The projection.</returns>
+    public static ProjectedRect GetProjectedRect(BoxCollider boxCollider, Camera camera)
+    {
+        return GetProjectedRect(GetBoundingCornerPoints(boxCollider), camera);
+    }
+
+    /// <summary>
+    /// Gets the projection for a given set of corner points and camera.
+    /// </summary>
+    /// <param name="boundingCornerPoints">The bounding corner points of the game object (in World space).</param>
+    /// <param name="camera">The camera.</param>
+    /// <returns>The projection.</returns>
+    public static ProjectedRect GetProjectedRect(IEnumerable<Vector3> boundingCornerPoints, Camera camera)
+    {
         float xMin = 0, xMax = 0, yMin = 0, yMax = 0, zMin = 0, zMax = 0;
 
         bool first = true;
-        foreach (var point in GetBoundingBoxCornerPoints(bounds))
+        foreach (var point in boundingCornerPoints)
         {
             var projectedPoint = camera.WorldToScreenPoint(point);
 
@@ -118,11 +140,33 @@ public struct ProjectedRect
         }
     }
 
-    private static IEnumerable<Vector3> GetBoundingBoxCornerPoints(Bounds boundingBox)
+    private static IEnumerable<Vector3> GetBoundingCornerPoints(Bounds boundingBox)
     {
         var center = boundingBox.center;
         var extents = boundingBox.extents;
 
+        foreach (var cornerFactor in GetCornerFactors())
+        {
+            var offset = new Vector3(cornerFactor.x * extents.x, cornerFactor.y * extents.y, cornerFactor.z * extents.z);
+            yield return center + offset;
+        }
+    }
+
+    private static IEnumerable<Vector3> GetBoundingCornerPoints(BoxCollider boxCollider)
+    {
+        var center = boxCollider.center;
+        var size = boxCollider.size;
+
+        foreach (var cornerFactor in GetCornerFactors())
+        {
+            var offset = new Vector3(cornerFactor.x * size.x, cornerFactor.y * size.y, cornerFactor.z * size.z) / 2.0f;
+            var cornerPointInWorldSpace = boxCollider.gameObject.transform.TransformPoint(center + offset);
+            yield return cornerPointInWorldSpace;
+        }
+    }
+
+    private static IEnumerable<Vector3> GetCornerFactors()
+    {
         // Some bit fiddling to iterate over the corners...
         for (int corner = 0; corner < 8; corner++)
         {
@@ -130,7 +174,7 @@ public struct ProjectedRect
             int yFactor = (corner & 2) == 0 ? +1 : -1;
             int zFactor = (corner & 4) == 0 ? +1 : -1;
 
-            yield return center + new Vector3(xFactor * extents.x, yFactor * extents.y, zFactor * extents.z);
+            yield return new Vector3(xFactor, yFactor, zFactor);
         }
     }
 }

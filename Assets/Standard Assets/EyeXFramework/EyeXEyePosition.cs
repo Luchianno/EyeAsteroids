@@ -12,12 +12,17 @@ public sealed class EyeXEyePosition
     /// Initializes a new instance of the <see cref="EyeXEyePosition"/> class.
     /// </summary>
     /// <param name="leftEye">The eye position of the left eye, see <see cref="EyeXSingleEyePosition"/>.</param>
+    /// <param name="leftEyeNormalized">The normalized eye position of the left eye, see <see cref="EyeXSingleEyePosition"/>.</param>
     /// <param name="rightEye">The eye position of the right eye, see <see cref="EyeXSingleEyePosition"/>.</param>
+    /// <param name="rightEyeNormalized">The normalized eye position of the right eye, see <see cref="EyeXSingleEyePosition"/>.</param>
     /// <param name="timestamp">The timestamp of the eye position data.</param>
-    public EyeXEyePosition(EyeXSingleEyePosition leftEye, EyeXSingleEyePosition rightEye, double timestamp)
+    public EyeXEyePosition(EyeXSingleEyePosition leftEye, EyeXSingleEyePosition leftEyeNormalized, 
+        EyeXSingleEyePosition rightEye, EyeXSingleEyePosition rightEyeNormalized, double timestamp)
     {
         LeftEye = leftEye;
+        LeftEyeNormalized = leftEyeNormalized;
         RightEye = rightEye;
+        RightEyeNormalized = rightEyeNormalized;
         Timestamp = timestamp;
     }
 
@@ -28,7 +33,8 @@ public sealed class EyeXEyePosition
     {
         get
         {
-            return new EyeXEyePosition(EyeXSingleEyePosition.Invalid, EyeXSingleEyePosition.Invalid, double.NaN);
+            return new EyeXEyePosition(EyeXSingleEyePosition.Invalid, EyeXSingleEyePosition.Invalid, 
+                EyeXSingleEyePosition.Invalid, EyeXSingleEyePosition.Invalid, double.NaN);
         }
     }
 
@@ -38,9 +44,19 @@ public sealed class EyeXEyePosition
     public EyeXSingleEyePosition LeftEye { get; private set; }
 
     /// <summary>
+    /// Gets the normalized position of the left eye.
+    /// </summary>
+    public EyeXSingleEyePosition LeftEyeNormalized { get; private set; }
+
+    /// <summary>
     /// Gets the position of the right eye.
     /// </summary>
     public EyeXSingleEyePosition RightEye { get; private set; }
+
+    /// <summary>
+    /// Gets the normalized position of the right eye.
+    /// </summary>
+    public EyeXSingleEyePosition RightEyeNormalized { get; private set; }
 
     /// <summary>
     /// Gets the point in time when the data point was captured. Milliseconds.

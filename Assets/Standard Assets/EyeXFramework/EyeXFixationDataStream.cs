@@ -5,6 +5,7 @@
 using UnityEngine;
 using Tobii.EyeX.Client;
 using Tobii.EyeX.Framework;
+using System.Collections.Generic;
 
 /// <summary>
 /// Provider of fixation data. When the provider has been started it
@@ -37,25 +38,22 @@ public class EyeXFixationDataStream : EyeXDataStreamBase<EyeXFixationPoint>
         interactor.CreateFixationDataBehavior(ref behaviorParams);
     }
 
-    public override void HandleEvent(InteractionEvent event_, Vector2 gameWindowPosition, float horizontalScreenScale, float verticalScreenScale)
+    protected override void HandleEvent(IEnumerable<Behavior> eventBehaviors, Vector2 viewportPosition, Vector2 viewportPixelsPerDesktopPixel)
     {
         // Note that this method is called on a worker thread, so we MAY NOT access any game objects from here.
         // The data is stored in the Last property and used from the main thread.
-        foreach (var behavior in event_.Behaviors)
+        foreach (var behavior in eventBehaviors)
         {
-            if (behavior.BehaviorType != BehaviorType.FixationData) { continue; }
-
-            FixationDataEventParams fixationEventParams;
-            if (behavior.TryGetFixationDataEventParams(out fixationEventParams))
+            FixationDataEventParams eventParams;
+            if (behavior.TryGetFixationDataEventParams(out eventParams))
             {
                 var gazePoint = new EyeXGazePoint(
-                    (float)fixationEventParams.X, 
-                    (float)fixationEventParams.Y, 
-                    fixationEventParams.Timestamp,
-                    gameWindowPosition,
-                    horizontalScreenScale,
-                    verticalScreenScale);
-                Last = new EyeXFixationPoint(gazePoint, fixationEventParams.Timestamp, fixationEventParams.EventType);
+                    new Vector2((float)eventParams.X, (float)eventParams.Y),
+                    eventParams.Timestamp,
+                    viewportPosition,
+                    viewportPixelsPerDesktopPixel);
+
+                Last = new EyeXFixationPoint(gazePoint, eventParams.Timestamp, eventParams.EventType);
             }
         }
     }

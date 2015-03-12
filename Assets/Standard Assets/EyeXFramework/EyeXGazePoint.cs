@@ -16,18 +16,16 @@ public struct EyeXGazePoint
     /// <summary>
     /// Creates a new instance.
     /// </summary>
-    /// <param name="x">X coordinate in operating system screen coordinates.</param>
-    /// <param name="y">Y coordinate in operating system screen coordinates.</param>
+    /// <param name="point">Gaze point in operating system screen coordinates.</param>
     /// <param name="timestamp">Timestamp in milliseconds.</param>
-    /// <param name="gameWindowPosition">The position of the top-left corner of the game window, in operating system coordinates.</param>
-    /// <param name="horizontalScreenScale">The horizontal relationship between the Unity and operating system coordinate systems.</param>
-    /// <param name="verticalScreenScale">The vertical relationship between the Unity and operating system coordinate systems.</param>
-    public EyeXGazePoint(float x, float y, double timestamp, Vector2 gameWindowPosition, float horizontalScreenScale, float verticalScreenScale)
+    /// <param name="viewportPosition">The position of the top-left corner of the viewport, in operating system coordinates.</param>
+    /// <param name="viewportPixelsPerDesktopPixel">The scaling factor between the Unity viewport and operating system coordinate systems.</param>
+    public EyeXGazePoint(Vector2 point, double timestamp, Vector2 viewportPosition, Vector2 viewportPixelsPerDesktopPixel)
     {
-        _gazePointInDisplaySpace = new Vector2(x, y);
+        _gazePointInDisplaySpace = point;
         _gazePointInUnityGUISpace = new Vector2(
-            (x - gameWindowPosition.x) * horizontalScreenScale, 
-            (y - gameWindowPosition.y) * verticalScreenScale);
+            (point.x - viewportPosition.x) * viewportPixelsPerDesktopPixel.x, 
+            (point.y - viewportPosition.y) * viewportPixelsPerDesktopPixel.y);
         _timestamp = timestamp;
     }
 
@@ -38,7 +36,7 @@ public struct EyeXGazePoint
     {
         get
         {
-            return new EyeXGazePoint(float.NaN, float.NaN, double.NaN, Vector2.zero, 1.0f, 1.0f);
+            return new EyeXGazePoint(new Vector2(float.NaN, float.NaN), double.NaN, Vector2.zero, Vector2.one);
         }
     }
 

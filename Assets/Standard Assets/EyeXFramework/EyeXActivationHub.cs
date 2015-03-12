@@ -20,8 +20,9 @@ public interface IEyeXActivationHub
     /// Handles an event. The event will take effect immediately, if no read operations have been performed yet in the current frame,
     /// or it will take effect at the end of the frame.
     /// </summary>
-    /// <param name="event_">Event to be handled.</param>
-    void HandleEvent(InteractionEvent event_);
+    /// <param name="interactorId">The ID of the interactor targeted by the event.</param>
+    /// <param name="behaviors">The <see cref="Behavior"/> instances containing the event data.</param>
+    void HandleEvent(string interactorId, IEnumerable<Behavior> behaviors);
 
     /// <summary>
     /// Signals that the frame ends.
@@ -57,17 +58,15 @@ public class EyeXActivationHub : IEyeXActivationHub
     private string _tentativelyFocusedInteractor;
     private string _focusedInteractor;
 
-    public void HandleEvent(InteractionEvent event_)
+    public void HandleEvent(string interactorId, IEnumerable<Behavior> behaviors)
     {
         // Note that this method is called on a worker thread, so we MAY NOT access any game objects from here.
         lock (this)
         {
-            foreach (var behavior in event_.Behaviors)
+            foreach (var behavior in behaviors)
             {
                 ActivatableEventType eventType;
                 if (!behavior.TryGetActivatableEventType(out eventType)) { continue; }
-
-                var interactorId = event_.InteractorId;
 
                 if (eventType == ActivatableEventType.Activated)
                 {

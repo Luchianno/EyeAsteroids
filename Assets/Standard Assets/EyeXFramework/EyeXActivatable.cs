@@ -2,11 +2,12 @@
 // Copyright 2014 Tobii Technology AB. All rights reserved.
 //-----------------------------------------------------------------------
 
+using System.Collections.Generic;
 using Tobii.EyeX.Client;
 using Tobii.EyeX.Framework;
 
 /// <summary>
-/// Used for assigning the Activatable behavior to an interactor, making it respond to activation events, "gaze clicking".
+/// Used for assigning the Activatable behavior to an interactor, making it respond to activation events.
 /// See <see cref="EyeXInteractor.EyeXBehaviors"/>.
 /// </summary>
 public class EyeXActivatable : IEyeXBehavior
@@ -14,7 +15,7 @@ public class EyeXActivatable : IEyeXBehavior
     /// <summary>
     /// Creates a new instance.
     /// </summary>
-    /// <param name="activationHub">Activation hub used for synchronizing activation events across interactors and frames. See <see cref="EyeXHost.ActivationHub>."/></param>
+    /// <param name="activationHub">Activation hub used for synchronizing activation events across interactors and frames. See <see cref="EyeXHost.ActivationHub"/>.</param>
     public EyeXActivatable(IEyeXActivationHub activationHub)
     {
         ActivationHub = activationHub;
@@ -32,15 +33,15 @@ public class EyeXActivatable : IEyeXBehavior
 
     #region IEyeXBehavior interface
 
-    public void AddTo(Interactor interactor)
+    public void AssignBehavior(Interactor interactor)
     {
         var behaviorParams = new ActivatableParams { EnableTentativeFocus = IsTentativeFocusEnabled ? EyeXBoolean.True : EyeXBoolean.False };
         interactor.CreateActivatableBehavior(ref behaviorParams);
     }
 
-    public void HandleEvent(InteractionEvent event_)
+    public void HandleEvent(string interactorId, IEnumerable<Behavior> behaviors)
     {
-        ActivationHub.HandleEvent(event_);
+        ActivationHub.HandleEvent(interactorId, behaviors);
     }
 
     #endregion

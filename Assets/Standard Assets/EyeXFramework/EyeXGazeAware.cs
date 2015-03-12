@@ -2,6 +2,7 @@
 // Copyright 2014 Tobii Technology AB. All rights reserved.
 //-----------------------------------------------------------------------
 
+using System.Collections.Generic;
 using Tobii.EyeX.Client;
 using Tobii.EyeX.Framework;
 
@@ -23,23 +24,24 @@ public class EyeXGazeAware : IEyeXBehavior
 
     #region IEyeXBehavior interface
 
-    public void AddTo(Interactor interactor)
+    public void AssignBehavior(Interactor interactor)
     {
-        if (DelayTime > 0)
+        using (var behavior = interactor.CreateBehavior(BehaviorType.GazeAware))
         {
-            var gazeAwareParams = new GazeAwareParams() { GazeAwareMode = GazeAwareMode.Delayed, DelayTime = DelayTime };
-            interactor.SetGazeAwareBehavior(ref gazeAwareParams);
-        }
-        else
-        {
-            interactor.CreateBehavior(BehaviorType.GazeAware);
+            if (DelayTime > 0)
+            {
+                var gazeAwareParams = new GazeAwareParams() { GazeAwareMode = GazeAwareMode.Delayed, DelayTime = DelayTime };
+                behavior.SetGazeAwareParams(ref gazeAwareParams);
+            }
         }
     }
 
-    public void HandleEvent(InteractionEvent event_)
+    public void HandleEvent(string interactorId, IEnumerable<Behavior> behaviors)
     {
-        foreach (var behavior in event_.Behaviors)
+        foreach (var behavior in behaviors)
         {
+            if (behavior.BehaviorType != BehaviorType.GazeAware) { continue; }
+
             GazeAwareEventParams eventData;
             if (behavior.TryGetGazeAwareEventParams(out eventData))
             {

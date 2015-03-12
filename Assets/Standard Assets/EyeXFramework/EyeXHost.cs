@@ -15,7 +15,8 @@ using Environment = Tobii.EyeX.Client.Environment;
 /// Provides the main point of contact with the EyeX Engine. 
 /// Hosts an EyeX context and responds to engine queries using a repository of interactors.
 /// </summary>
-public class EyeXHost : MonoBehaviour
+[AddComponentMenu("")]
+public partial class EyeXHost : MonoBehaviour
 {
     /// <summary>
     /// If set to true, it will automatically initialize the EyeX Engine on Start().
@@ -35,14 +36,14 @@ public class EyeXHost : MonoBehaviour
     private readonly EyeXActivationHub _activationHub = new EyeXActivationHub();
     private Environment _environment;
     private Context _context;
-    private Vector2 _gameWindowPosition = new Vector2(float.NaN, float.NaN);
-    private float _horizontalScreenScale = 1.0f;
-    private float _verticalScreenScale = 1.0f;
+    private Vector2 _viewportPosition = new Vector2(float.NaN, float.NaN);
+    private Vector2 _viewportPixelsPerDesktopPixel = Vector2.one;
     private bool _isConnected;
     private bool _isPaused;
     private bool _isFocused;
     private bool _runInBackground;
-    private ScreenHelpers _screenHelpers;
+    private EyeXViewportBoundsProvider _viewportBoundsProvider;
+    private Version _engineVersion;
 
     // Engine state accessors
     private EyeXEngineStateAccessor<Tobii.EyeX.Client.Rect> _screenBoundsStateAccessor;
@@ -69,17 +70,33 @@ public class EyeXHost : MonoBehaviour
     /// <summary>
     /// Gets the engine state: Eye tracking status.
     /// </summary>
-    public EyeXEngineStateValue<EyeTrackingDeviceStatus> EyeTrackingDeviceStatus
+    public EyeXDeviceStatus EyeTrackingDeviceStatus
     {
-        get { return _eyeTrackingDeviceStatusStateAccessor.GetCurrentValue(_context); }
+        get
+        {
+            return EnumHelpers.ConvertToEyeXDeviceStatus(
+                _eyeTrackingDeviceStatusStateAccessor.GetCurrentValue(_context));
+        }
     }
 
     /// <summary>
     /// Gets the engine state: User presence.
     /// </summary>
-    public EyeXEngineStateValue<UserPresence> UserPresence
+    public EyeXUserPresence UserPresence
     {
-        get { return _userPresenceStateAccessor.GetCurrentValue(_context); }
+        get
+        {
+            return EnumHelpers.ConvertToEyeXUserPresence(
+                _userPresenceStateAccessor.GetCurrentValue(_context));
+        }
+    }
+
+    /// <summary>
+    /// Gets the engine version.
+    /// </summary>
+    public Version EngineVersion
+    {
+        get { return _engineVersion; }
     }
 
     /// <summary>
@@ -138,13 +155,28 @@ public class EyeXHost : MonoBehaviour
     {
         _runInBackground = Application.runInBackground;
 
-        _screenHelpers = new ScreenHelpers();
+#if UNITY_EDITOR
+        _viewportBoundsProvider = CreateEditorScreenHelper();
+#else
+        _viewportBoundsProvider = new UnityPlayerViewportBoundsProvider();
+#endif
 
-        _screenBoundsStateAccessor = new EyeXEngineStateAccessor<Tobii.EyeX.Client.Rect>(StatePaths.ScreenBounds, OnEngineStateChanged);
-        _displaySizeStateAccessor = new EyeXEngineStateAccessor<Size2>(StatePaths.DisplaySize, OnEngineStateChanged);
-        _eyeTrackingDeviceStatusStateAccessor = new EyeXEngineStateAccessor<EyeTrackingDeviceStatus>(StatePaths.EyeTrackingState, OnEngineStateChanged);
-        _userPresenceStateAccessor = new EyeXEngineStateAccessor<UserPresence>(StatePaths.UserPresence, OnEngineStateChanged);
+        _screenBoundsStateAccessor = new EyeXEngineStateAccessor<Tobii.EyeX.Client.Rect>(StatePaths.ScreenBounds);
+        _displaySizeStateAccessor = new EyeXEngineStateAccessor<Size2>(StatePaths.DisplaySize);
+        _eyeTrackingDeviceStatusStateAccessor = new EyeXEngineStateAccessor<EyeTrackingDeviceStatus>(StatePaths.EyeTrackingState);
+        _userPresenceStateAccessor = new EyeXEngineStateAccessor<UserPresence>(StatePaths.UserPresence);
     }
+
+#if UNITY_EDITOR
+    private static EyeXViewportBoundsProvider CreateEditorScreenHelper()
+    {
+#if UNITY_4_5 || UNITY_4_3 || UNITY_4_2 || UNITY_4_1
+        return new LegacyEditorViewportBoundsProvider();
+#else
+        return new EditorViewportBoundsProvider();
+#endif
+    }
+#endif
 
     /// <summary>
     /// Start is called on the frame when a script is enabled just before any of the Update methods is called the first time.
@@ -162,10 +194,15 @@ public class EyeXHost : MonoBehaviour
     /// </summary>
     public void Update()
     {
-        // update the game window position, in case the game window has been moved or resized.
-        _gameWindowPosition = _screenHelpers.GetGameWindowPosition();
-        _horizontalScreenScale = _screenHelpers.GetHorizontalScreenScale(ScreenBounds);
-        _verticalScreenScale = _screenHelpers.GetVerticalScreenScale(ScreenBounds);
+        if (_engineVersion == null && IsInitialized && _isConnected)
+        {
+            _engineVersion = GetEngineVersion();
+        }
+
+        // update the viewport position, in case the game window has been moved or resized.
+        var viewportBounds = _viewportBoundsProvider.GetViewportPhysicalBounds();
+        _viewportPosition = new Vector2(viewportBounds.x, viewportBounds.y);
+        _viewportPixelsPerDesktopPixel = new Vector2(Screen.width / viewportBounds.width, Screen.height / viewportBounds.height);
 
         StartCoroutine(DoEndOfFrameCleanup());
     }
@@ -291,6 +328,17 @@ public class EyeXHost : MonoBehaviour
     }
 
     /// <summary>
+    /// Trigger an activation ("direct click").
+    /// Use this method if you want to bind the click command to a key other than the one used 
+    /// in the EyeX Interaction settings -- or to something other than a key press event.
+    /// </summary>
+    public void TriggerActivation()
+    {
+        _context.CreateActionCommand(ActionType.Activate)
+            .ExecuteAsync(null);
+    }
+
+    /// <summary>
     /// Gets a data provider for a given data stream: preferably an existing one 
     /// in the _globalInteractors collection, or, failing that, the one passed 
     /// in as a parameter.
@@ -327,33 +375,6 @@ public class EyeXHost : MonoBehaviour
             _globalInteractors.TryGetValue(interactorId, out interactor);
             return interactor;
         }
-    }
-
-    /// <summary>
-    /// Handles a state changed notification from the EyeX Engine.
-    /// </summary>
-    /// <param name="asyncData">Notification data packet.</param>
-    protected virtual void OnEngineStateChanged(AsyncData asyncData)
-    {
-        ResultCode resultCode;
-        if (!asyncData.TryGetResultCode(out resultCode) ||
-            resultCode != ResultCode.Ok)
-        {
-            return;
-        }
-
-        var stateBag = asyncData.GetDataAs<StateBag>();
-        if (stateBag == null)
-        {
-            return;
-        }
-
-        _screenBoundsStateAccessor.HandleStateChanged(stateBag, this);
-        _displaySizeStateAccessor.HandleStateChanged(stateBag, this);
-        _eyeTrackingDeviceStatusStateAccessor.HandleStateChanged(stateBag, this);
-        _userPresenceStateAccessor.HandleStateChanged(stateBag, this);
-
-        asyncData.Dispose();
     }
 
     /// <summary>
@@ -461,94 +482,101 @@ public class EyeXHost : MonoBehaviour
     private void HandleQuery(Query query)
     {
         // NOTE: this method is called from a worker thread, so it must not access any game objects.
-        try
+        using (query)
         {
-            // The mechanism that we use for getting the window ID assumes that the game window is on top 
-            // when the scripts start running. It usually does the right thing, but not always. 
-            // So adjust if necessary.
-            var queryWindowIdEnum = query.WindowIds.GetEnumerator();
-            if (queryWindowIdEnum.MoveNext())
+            try
             {
-                if (queryWindowIdEnum.Current != _screenHelpers.GameWindowId)
+                Rect queryRectInGuiCoordinates;
+                if (!TryGetQueryRectangle(query, out queryRectInGuiCoordinates)) { return; }
+
+                // Make a copy of the collection of interactors to avoid race conditions.
+                List<EyeXInteractor> interactorsCopy;
+                lock (_lock)
                 {
-                    //print(string.Format("Window ID mismatch: queried for {0}, expected {1}. Adjusting.", queryWindowIdEnum.Current, ScreenHelpers.Instance.GameWindowId));
-                    _screenHelpers.GameWindowId = queryWindowIdEnum.Current;
-                    _gameWindowPosition = new Vector2(float.NaN, float.NaN);
+                    interactorsCopy = new List<EyeXInteractor>(_interactors.Values);
+                }
+
+                // Create the snapshot and add the interactors that intersect with the query bounds.
+                using (var snapshot = _context.CreateSnapshotWithQueryBounds(query))
+                {
+                    snapshot.AddWindowId(_viewportBoundsProvider.GameWindowId);
+                    foreach (var interactor in interactorsCopy)
+                    {
+                        if (interactor.IntersectsWith(queryRectInGuiCoordinates))
+                        {
+                            interactor.AddToSnapshot(
+                                snapshot,
+                                _viewportBoundsProvider.GameWindowId,
+                                _viewportPosition,
+                                _viewportPixelsPerDesktopPixel);
+                        }
+                    }
+
+                    CommitSnapshot(snapshot);
                 }
             }
-
-            if (float.IsNaN(_gameWindowPosition.x))
+            catch (InteractionApiException ex)
             {
-                // We don't have a valid game window position, so we cannot respond to any queries at this time.
-                return;
+                print("EyeX query handler failed: " + ex.Message);
             }
-
-            // Get query bounds and map them to GUI coordinates.
-            double boundsX, boundsY, boundsWidth, boundsHeight;
-            query.Bounds.TryGetRectangularData(out boundsX, out boundsY, out boundsWidth, out boundsHeight);
-
-            var queryRectInGuiCoordinates = new Rect(
-                (float)(boundsX - _gameWindowPosition.x) * _horizontalScreenScale,
-                (float)(boundsY - _gameWindowPosition.y) * _verticalScreenScale,
-                (float)boundsWidth,
-                (float)boundsHeight);
-
-            // Make a copy of the collection of interactors to avoid race conditions.
-            List<EyeXInteractor> interactorsCopy;
-            lock (_lock)
-            {
-                interactorsCopy = new List<EyeXInteractor>(_interactors.Values);
-            }
-
-            // Create the snapshot and add the interactors that intersect with the query bounds.
-            var snapshot = _context.CreateSnapshotWithQueryBounds(query);
-
-            snapshot.AddWindowId(_screenHelpers.GameWindowId);
-            foreach (var interactor in interactorsCopy)
-            {
-                if (interactor.IntersectsWith(queryRectInGuiCoordinates))
-                {
-                    interactor.AddToSnapshot(snapshot, _screenHelpers.GameWindowId, _gameWindowPosition, _horizontalScreenScale, _verticalScreenScale);
-                }
-            }
-
-            CommitSnapshot(snapshot);
-
-            snapshot.Dispose();
-            query.Dispose();
         }
-        catch (InteractionApiException ex)
+    }
+
+    private bool TryGetQueryRectangle(Query query, out Rect queryRectInGuiCoordinates)
+    {
+        if (float.IsNaN(_viewportPosition.x))
         {
-            print("EyeX query handler failed: " + ex.Message);
+            // We don't have a valid game window position, so we cannot respond to any queries at this time.
+            queryRectInGuiCoordinates = new Rect();
+            return false;
         }
+
+        double boundsX, boundsY, boundsWidth, boundsHeight; // desktop pixels
+        using (var bounds = query.Bounds)
+        {
+            if (!bounds.TryGetRectangularData(out boundsX, out boundsY, out boundsWidth, out boundsHeight))
+            {
+                queryRectInGuiCoordinates = new Rect();
+                return false;
+            }
+        }
+
+        queryRectInGuiCoordinates = new Rect(
+            (float)((boundsX - _viewportPosition.x) * _viewportPixelsPerDesktopPixel.x),
+            (float)((boundsY - _viewportPosition.y) * _viewportPixelsPerDesktopPixel.y),
+            (float)(boundsWidth * _viewportPixelsPerDesktopPixel.x),
+            (float)(boundsHeight * _viewportPixelsPerDesktopPixel.y));
+
+        return true;
     }
 
     private void HandleEvent(InteractionEvent event_)
     {
         // NOTE: this method is called from a worker thread, so it must not access any game objects.
-        try
+        using (event_)
         {
-            // Route the event to the appropriate interactor, if any.
-            var interactorId = event_.InteractorId;
-
-            var globalInteractor = GetGlobalInteractor(interactorId);
-            if (globalInteractor != null)
+            try
             {
-                globalInteractor.HandleEvent(event_, _gameWindowPosition, _horizontalScreenScale, _verticalScreenScale);
-                return;
+                // Route the event to the appropriate interactor, if any.
+                var interactorId = event_.InteractorId;
+                var globalInteractor = GetGlobalInteractor(interactorId);
+                if (globalInteractor != null)
+                {
+                    globalInteractor.HandleEvent(event_, _viewportPosition, _viewportPixelsPerDesktopPixel);
+                }
+                else
+                {
+                    var interactor = GetInteractor(interactorId);
+                    if (interactor != null)
+                    {
+                        interactor.HandleEvent(event_);
+                    }
+                }
             }
-
-            var interactor = GetInteractor(interactorId);
-            if (interactor != null)
+            catch (InteractionApiException ex)
             {
-                interactor.HandleEvent(event_);
+                print("EyeX event handler failed: " + ex.Message);
             }
-
-            event_.Dispose();
-        }
-        catch (InteractionApiException ex)
-        {
-            print("EyeX event handler failed: " + ex.Message);
         }
     }
 
@@ -628,13 +656,13 @@ public class EyeXHost : MonoBehaviour
 			{
 				print("Could not commit snapshot: " + GetErrorMessage(asyncData));
 			}
-
-			asyncData.Dispose();
 		}
 		catch (InteractionApiException ex)
 		{
 			print("EyeX operation failed: " + ex.Message);
 		}
+
+		asyncData.Dispose();
 	}
 
 	private static string GetErrorMessage(AsyncData asyncData)
@@ -650,4 +678,20 @@ public class EyeXHost : MonoBehaviour
 		}
 	}
 #endif
+
+    public Version GetEngineVersion()
+    {
+        if (_context == null)
+        {
+            throw new InvalidOperationException("The EyeX host has not been started.");
+        }
+        var stateBag = _context.GetState(StatePaths.EngineVersion);
+        string value;
+        if (!stateBag.TryGetStateValue(out value, StatePaths.EngineVersion))
+        {
+            throw new InvalidOperationException("Could not get engine version.");
+        }
+        return new Version(value);
+    }
+
 }

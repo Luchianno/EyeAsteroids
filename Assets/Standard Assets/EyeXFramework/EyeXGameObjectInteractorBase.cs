@@ -24,6 +24,7 @@ public abstract class EyeXGameObjectInteractorBase : MonoBehaviour
     private EyeXHost _eyeXHost;
     private string _interactorId;
 	private Renderer _gameObjectRenderer;
+    private BoxCollider _boxCollider;
 
     protected EyeXHost Host
     {
@@ -39,6 +40,8 @@ public abstract class EyeXGameObjectInteractorBase : MonoBehaviour
     {
         _eyeXHost = EyeXHost.GetInstance();
         _interactorId = gameObject.GetInstanceID().ToString();
+
+        _boxCollider = GetComponent<BoxCollider>();
     }
 
     protected virtual void Update()
@@ -89,26 +92,19 @@ public abstract class EyeXGameObjectInteractorBase : MonoBehaviour
     protected abstract IList<IEyeXBehavior> GetEyeXBehaviorsForGameObjectInteractor();
 
     /// <summary>
-    /// Gets the ProjectedRect on Screen for a Game Object based on its bounding box in World.
+    /// Gets the ProjectedRect in Screen space for a Game Object.
     /// Override this method if you want to calculate the World to Screen projected
     /// rectangle for the game object some other way.
     /// </summary>
     /// <returns></returns>
     protected virtual ProjectedRect GetProjectedRect()
     {
-        return ProjectedRect.GetProjectedRect(GetBounds(), Camera.main);
-    }
+        if (_boxCollider != null)
+        {
+            return ProjectedRect.GetProjectedRect(_boxCollider, Camera.main);
+        }
 
-    /// <summary>
-    /// Gets the bounds (bounding box in World) for a Game Object from its renderer. 
-    /// Override this method to provide bounds for Game Objects that do not have a 
-    /// renderer. Alternatively override GetProjectedRect() to provide the projected
-    /// rectangle on Screen directly.
-    /// </summary>
-    /// <returns></returns>
-    protected virtual Bounds GetBounds()
-    {
-        return GetRenderer().bounds;
+        return ProjectedRect.GetProjectedRect(GetRenderer().bounds, Camera.main);
     }
 
     private void UpdateInteractorLocation(EyeXInteractor interactor)
@@ -158,7 +154,7 @@ public abstract class EyeXGameObjectInteractorBase : MonoBehaviour
 	{
 		if (_gameObjectRenderer == null) 
 		{
-			_gameObjectRenderer = gameObject.renderer ?? GetComponentInChildren<Renderer>(); 
+			_gameObjectRenderer = gameObject.GetComponent<Renderer>() ?? GetComponentInChildren<Renderer>(); 
 
 			if(_gameObjectRenderer == null)
 			{

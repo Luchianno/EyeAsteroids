@@ -12,7 +12,7 @@ using Tobii.EyeX.Client;
 public sealed class EyeXEngineStateValue<T> : EventArgs
 {
     /// <summary>
-    /// Initializes a new instance of the <see cref="EngineStateValue{T}"/> class.
+    /// Initializes a new instance of the <see cref="EyeXEngineStateValue{T}"/> class.
     /// </summary>
     /// <param name="value">The state handler.</param>
     public EyeXEngineStateValue(T value)

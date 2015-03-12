@@ -5,6 +5,7 @@
 using UnityEngine;
 using Tobii.EyeX.Client;
 using Tobii.EyeX.Framework;
+using System.Collections.Generic;
 
 /// <summary>
 /// Provider of eye position data. When the provider has been started it
@@ -29,23 +30,26 @@ public class EyeXEyePositionDataStream : EyeXDataStreamBase<EyeXEyePosition>
 
     protected override void AssignBehavior(Interactor interactor)
     {
-        interactor.CreateBehavior(BehaviorType.EyePositionData);
+        var behavior = interactor.CreateBehavior(BehaviorType.EyePositionData);
+        behavior.Dispose();
     }
 
-    public override void HandleEvent(InteractionEvent event_, Vector2 gameWindowPosition, float horizontalScreenScale, float verticalScreenScale)
+    protected override void HandleEvent(IEnumerable<Behavior> eventBehaviors, Vector2 viewportPosition, Vector2 viewportPixelsPerDesktopPixel)
     {
         // Note that this method is called on a worker thread, so we MAY NOT access any game objects from here.
         // The data is stored in the Last property and used from the main thread.
-        foreach (var behavior in event_.Behaviors)
+        foreach (var behavior in eventBehaviors)
         {
-            if (behavior.BehaviorType != BehaviorType.EyePositionData) { continue; }
-
             EyePositionDataEventParams eventParams;
             if (behavior.TryGetEyePositionDataEventParams(out eventParams))
             {
                 var left = new EyeXSingleEyePosition(eventParams.HasLeftEyePosition != EyeXBoolean.False, (float)eventParams.LeftEyeX, (float)eventParams.LeftEyeY, (float)eventParams.LeftEyeZ);
+                var leftNormalized = new EyeXSingleEyePosition(eventParams.HasLeftEyePosition != EyeXBoolean.False, (float)eventParams.LeftEyeXNormalized, (float)eventParams.LeftEyeYNormalized, (float)eventParams.LeftEyeZNormalized);
+                
                 var right = new EyeXSingleEyePosition(eventParams.HasRightEyePosition != EyeXBoolean.False, (float)eventParams.RightEyeX, (float)eventParams.RightEyeY, (float)eventParams.RightEyeZ);
-                Last = new EyeXEyePosition(left, right, eventParams.Timestamp);
+                var rightNormalized = new EyeXSingleEyePosition(eventParams.HasRightEyePosition != EyeXBoolean.False, (float)eventParams.RightEyeXNormalized, (float)eventParams.RightEyeYNormalized, (float)eventParams.RightEyeZNormalized);
+
+                Last = new EyeXEyePosition(left, leftNormalized, right, rightNormalized, eventParams.Timestamp);
             }
         }
     }

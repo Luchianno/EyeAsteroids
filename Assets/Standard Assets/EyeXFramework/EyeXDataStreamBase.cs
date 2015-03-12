@@ -6,6 +6,7 @@ using System;
 using UnityEngine;
 using Tobii.EyeX.Client;
 using Tobii.EyeX.Framework;
+using System.Collections.Generic;
 
 /// <summary>
 /// Base class for data streams.
@@ -80,27 +81,41 @@ public abstract class EyeXDataStreamBase<T> : IEyeXDataProvider<T>, IEyeXGlobalI
     /// <param name="forceDeletion">If true, forces the interactor to be deleted.</param>
     public void AddToSnapshot(Snapshot snapshot, bool forceDeletion)
     {
-        var interactor = snapshot.CreateInteractor(Id, Literals.RootId, Literals.GlobalInteractorWindowId);
-        interactor.CreateBounds(BoundsType.None);
-
-        if (!IsStarted || forceDeletion)
+        using (var interactor = snapshot.CreateInteractor(Id, Literals.RootId, Literals.GlobalInteractorWindowId))
         {
-            interactor.IsDeleted = true;
-        }
+            var bounds = interactor.CreateBounds(BoundsType.None);
+            bounds.Dispose();
 
-        AssignBehavior(interactor);
+            if (!IsStarted || forceDeletion)
+            {
+                interactor.IsDeleted = true;
+            }
+
+            AssignBehavior(interactor);
+        }
     }
 
     /// <summary>
     /// Handles interaction events.
     /// </summary>
     /// <param name="event_">The <see cref="InteractionEvent"/> instance containing the event data.</param>
-    /// <param name="gameWindowPosition">The position of the top-left corner of the game window, in operating system coordinates.</param>
-    /// <param name="horizontalScreenScale">The horizontal relationship between the Unity and operating system coordinate systems.</param>
-    /// <param name="verticalScreenScale">The vertical relationship between the Unity and operating system coordinate systems.</param>
-    public abstract void HandleEvent(InteractionEvent event_, Vector2 gameWindowPosition, float horizontalScreenScale, float verticalScreenScale);
+    /// <param name="viewportPosition">The position of the top-left corner of the viewport, in operating system coordinates.</param>
+    /// <param name="viewportPixelsPerDesktopPixel">The scaling factor between the Unity viewport and operating system coordinate systems.</param>
+    public void HandleEvent(InteractionEvent event_, Vector2 viewportPosition, Vector2 viewportPixelsPerDesktopPixel)
+    {
+        var eventBehaviors = event_.Behaviors;
+
+        HandleEvent(eventBehaviors, viewportPosition, viewportPixelsPerDesktopPixel);
+
+        foreach (var eventBehavior in eventBehaviors)
+        {
+            eventBehavior.Dispose();
+        }
+    }
 
     protected abstract void AssignBehavior(Interactor interactor);
+
+    protected abstract void HandleEvent(IEnumerable<Behavior> eventBehaviors, Vector2 viewportPosition, Vector2 viewportPixelsPerDesktopPixel);
 
     protected virtual void OnStreamingStarted()
     {
