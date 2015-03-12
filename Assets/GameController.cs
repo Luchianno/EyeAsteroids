@@ -22,7 +22,7 @@ public class GameController : MonoBehaviour
     {
         host = EyeXHost.GetInstance();
         gazePos = host.GetGazePointDataProvider(Tobii.EyeX.Framework.GazePointDataMode.LightlyFiltered);
-        Player.transform.localScale = new Vector3(StartingPlayerSize, StartingPlayerSize, StartingPlayerSize);    
+        Player.transform.localScale = new Vector3(StartingPlayerSize, StartingPlayerSize, StartingPlayerSize);
     }
 
     public void StartGame()
@@ -111,7 +111,7 @@ public class GameController : MonoBehaviour
     {
         if (Debug.isDebugBuild)
         {
-            GUI.TextField(new Rect(10, 30, 50, 20), this.eyesDetectedDuration.ToString());
+            GUI.TextField(new Rect(10, 30, 100, 20), "Time " + this.eyesDetectedDuration.ToString());
         }
     }
 

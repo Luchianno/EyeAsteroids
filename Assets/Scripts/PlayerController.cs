@@ -60,7 +60,7 @@ public class PlayerController : MonoBehaviour
     {
         if (Debug.isDebugBuild)
         {
-            GUI.TextField(new Rect(10, 10, 50, 20), this.Health.ToString());
+            GUI.TextField(new Rect(10, 10, 100, 20), "Health " + Mathf.Clamp(Health, 0, 1000).ToString());
         }
     }
 }
