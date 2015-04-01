@@ -6,7 +6,7 @@ public class GameController : MonoBehaviour
     public bool isGameOver = true;
     public float GrowTime = 2f;
     public float StartingPlayerSize = 2.5f;
-
+    public float GazeReuiredToStart = 4;
 
     private float eyesDetectedDuration; // ramdeni xania dafiqsirebuli tvalebi
     private float eyesDetectedLast; // bolo dafiqsirebis dro
@@ -50,24 +50,28 @@ public class GameController : MonoBehaviour
         LeanTween.cancel(Player.gameObject);
         LeanTween.scale(Player.gameObject, new Vector3(3, 3, 3), GrowTime);
         LeanTween.move(this.gameObject, Vector3.zero, GrowTime);
+
+        Player.rigidbody2D.velocity = Vector2.zero;
+
         UI.GetComponent<Animator>().SetBool("Active", true);
     }
 
     void Update()
     {
-        if (Input.GetButtonUp("Jump"))
-        {
-            StartGame();
-        }
-
         if (isGameOver)
         {
+            if (Input.GetButtonUp("Jump"))
+            {
+                StartGame();
+                eyesDetectedDuration = 0;
+            }
+
             //თუ თვალებს ვხედავთ
             if (gazePos.Last.IsValid && gazePos.Last.IsWithinScreenBounds)
             {
                 eyesDetectedDuration += Time.deltaTime;
                 eyesDetectedLast = Time.time;
-                if (eyesDetectedDuration > 4.5f)
+                if (eyesDetectedDuration > GazeReuiredToStart)
                 {
                     eyesDetectedDuration = 0;
                     StartGame();
@@ -84,6 +88,11 @@ public class GameController : MonoBehaviour
         }
         else
         {
+            if (Input.GetButtonUp("Jump"))
+            {
+                EndGame(false);
+            }
+
             if (Player.Health <= 0)
             {
                 EndGame(false);
