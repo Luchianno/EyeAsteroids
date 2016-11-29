@@ -81,7 +81,7 @@ public class AsteroidController : EyeXGameObjectInteractorBase
 
     protected override ProjectedRect GetProjectedRect()
     {
-        return ProjectedRect.GetProjectedRect(this.collider2D.bounds, Camera.main);
+        return ProjectedRect.GetProjectedRect(this.GetComponent<Collider2D>().bounds, Camera.main);
     }
 
     //protected override UnityEngine.Bounds GetBounds()

@@ -76,7 +76,7 @@ public class PunchTester : MonoBehaviour {
     void updateColor( Color c ){
         GameObject l = GameObject.Find("LCharacter");
         // Debug.Log("new col:"+c);
-        l.renderer.material.color = c;
+        l.GetComponent<Renderer>().material.color = c;
     }
 
     void delayedMethod( object myVal ){

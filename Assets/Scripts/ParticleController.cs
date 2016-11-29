@@ -6,7 +6,7 @@ public class ParticleController : MonoBehaviour
 
     void Start()
     {
-        particleSystem.renderer.sortingLayerName = "Stars";
+        GetComponent<ParticleSystem>().GetComponent<Renderer>().sortingLayerName = "Stars";
     }
 
     void Update()

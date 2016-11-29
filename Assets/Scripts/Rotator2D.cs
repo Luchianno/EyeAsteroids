@@ -10,7 +10,7 @@ public class Rotator2D : MonoBehaviour
     // Use this for initialization
     void Start()
     {
-        this.rigidbody2D.angularVelocity = Random.Range(MinAngular, MaxAngular);
+        this.GetComponent<Rigidbody2D>().angularVelocity = Random.Range(MinAngular, MaxAngular);
     }
 
     // Update is called once per frame

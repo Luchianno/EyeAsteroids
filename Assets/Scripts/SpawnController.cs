@@ -24,7 +24,7 @@ public class SpawnController : MonoBehaviour
 
         // (GameObject)Instantiate(asteroids[Random.Range(0, asteroids.Length)], this.transform.position, Quaternion.identity);
 
-        temp.rigidbody2D.velocity = Random.Range(MinSpeed, MaxSpeed) * Random.insideUnitCircle;
+        temp.GetComponent<Rigidbody2D>().velocity = Random.Range(MinSpeed, MaxSpeed) * Random.insideUnitCircle;
 
         Invoke("Spawn", Random.Range(MinRespawn, MaxRespawn));
     }

@@ -51,7 +51,7 @@ public class GameController : MonoBehaviour
         LeanTween.scale(Player.gameObject, new Vector3(3, 3, 3), GrowTime);
         LeanTween.move(this.gameObject, Vector3.zero, GrowTime);
 
-        Player.rigidbody2D.velocity = Vector2.zero;
+        Player.GetComponent<Rigidbody2D>().velocity = Vector2.zero;
 
         UI.GetComponent<Animator>().SetBool("Active", true);
     }
