@@ -4,10 +4,6 @@ using Tobii.EyeX.Client;
 using System.Collections.Generic;
 using UnityEngine.Serialization;
 
-
-// ვაკეთებ დაშვებას რომ მომხმარებლის ყოველი 1 წამიანი მიშტერებული
-// მზერა ასტეროიდს აკლებს 100 სიცოცხლეს
-
 public class AsteroidController : EyeXGameObjectInteractorBase
 {
     public float MinHealth;
@@ -39,8 +35,6 @@ public class AsteroidController : EyeXGameObjectInteractorBase
         startingHealth = Mathf.Lerp(MinHealth, MaxHealth, (size - MinSize) / (MaxSize - MinSize));
         currentHealth = startingHealth;
     }
-
-
 
     protected override void Update()
     {
